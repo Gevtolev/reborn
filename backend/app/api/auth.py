@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
+from app.core.config import settings
 from app.services.sms import SMSService
 from app.services.auth import create_access_token, get_or_create_user
 
@@ -33,6 +34,10 @@ async def send_code(request: SendCodeRequest):
     code = sms_service.generate_code()
     _verification_codes[request.phone] = code
     await sms_service.send_code(request.phone, code)
+
+    # In DEBUG mode, return the code for testing
+    if settings.DEBUG:
+        return {"message": "Code sent", "code": code}
     return {"message": "Code sent"}
 
 
