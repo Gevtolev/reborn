@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """LangGraph-based coaching agent for Reborn."""
 
 from typing import TypedDict, Annotated, AsyncGenerator
@@ -6,7 +7,12 @@ from langgraph.graph.message import add_messages
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 
 from app.ai.client import get_chat_model
-from app.ai.prompts import AGENT_SYSTEM_PROMPT, build_user_context
+from app.ai.prompts import (
+    AGENT_SYSTEM_PROMPT,
+    build_user_context,
+    extract_insights_from_response,
+    clean_insight_markers,
+)
 
 
 class AgentState(TypedDict):
@@ -36,7 +42,10 @@ async def coaching_node(state: AgentState) -> dict:
     # Generate response
     response = await model.ainvoke(messages)
 
-    return {"messages": [response]}
+    # Extract insights from response
+    insights = extract_insights_from_response(response.content)
+
+    return {"messages": [response], "extracted_insights": insights}
 
 
 def build_coaching_graph() -> StateGraph:
@@ -67,7 +76,7 @@ coaching_agent = build_coaching_graph()
 async def chat_with_agent(
     messages: list[dict],
     user_profile: dict | None = None
-) -> str:
+) -> tuple[str, list[str]]:
     """
     Chat with the coaching agent (non-streaming).
 
@@ -76,7 +85,7 @@ async def chat_with_agent(
         user_profile: User's profile data
 
     Returns:
-        Agent's response text
+        Tuple of (response_text, extracted_insights)
     """
     # Convert messages to LangChain format
     lc_messages = []
@@ -101,9 +110,12 @@ async def chat_with_agent(
     # Extract response
     if result["messages"]:
         last_message = result["messages"][-1]
-        return last_message.content
+        raw_response = last_message.content
+        insights = result.get("extracted_insights", [])
+        cleaned_response = clean_insight_markers(raw_response)
+        return cleaned_response, insights
 
-    return ""
+    return "", []
 
 
 async def chat_stream_with_agent(
@@ -118,7 +130,7 @@ async def chat_stream_with_agent(
         user_profile: User's profile data
 
     Yields:
-        Chunks of the agent's response
+        Chunks of the agent's response (with insight markers cleaned)
     """
     model = get_chat_model(streaming=True)
 
@@ -137,6 +149,10 @@ async def chat_stream_with_agent(
     full_messages = [system_msg] + lc_messages
 
     # Stream response
+    buffer = ""
     async for chunk in model.astream(full_messages):
         if chunk.content:
-            yield chunk.content
+            buffer += chunk.content
+            # Stream cleaned content
+            cleaned = clean_insight_markers(buffer)
+            yield cleaned[len(clean_insight_markers(buffer[:len(buffer) - len(chunk.content)])):]

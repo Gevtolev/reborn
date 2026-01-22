@@ -30,6 +30,11 @@ build/
 *.log
 logs/
 
+# Process IDs
+*.pid
+.backend.pid
+.frontend.pid
+
 # Testing
 .coverage
 htmlcov/

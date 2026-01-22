@@ -6,7 +6,7 @@ from app.core.config import settings
 
 
 def get_chat_model(
-    model: str = "qwen-turbo",
+    model: str = "qwen-plus",
     streaming: bool = True,
     temperature: float = 0.7
 ) -> ChatTongyi:

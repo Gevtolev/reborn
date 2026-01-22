@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -8,9 +9,12 @@ from app.models.user import User
 from app.services.conversation import (
     get_or_create_conversation,
     add_message,
-    get_user_profile
+    get_user_profile,
+    update_user_insights,
+    clear_user_conversations,
 )
-from app.ai import chat_stream_with_agent, FIRST_MESSAGE_PROMPT
+from app.ai import chat_stream_with_agent, chat_with_agent, FIRST_MESSAGE_PROMPT
+from app.ai.prompts import extract_insights_from_response, clean_insight_markers
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -60,15 +64,22 @@ async def send_message(
     ai_messages = conversation.messages or []
 
     async def generate():
-        full_response = []
+        full_response = ""
         try:
             async for chunk in chat_stream_with_agent(ai_messages, profile):
-                full_response.append(chunk)
+                full_response += chunk
                 yield f"data: {chunk}\n\n"
 
             # Save assistant response
-            assistant_message = "".join(full_response)
-            await add_message(db, conversation, "assistant", assistant_message)
+            await add_message(db, conversation, "assistant", full_response)
+
+            # Extract insights from full response
+            insights = extract_insights_from_response(full_response)
+            if insights:
+                # Save insights to profile
+                existing_insights = profile.key_insights or []
+                all_insights = list(set(existing_insights + insights))
+                await update_user_insights(db, user.id, all_insights[-5:])  # Keep last 5
 
             yield "data: [DONE]\n\n"
         except Exception as e:
@@ -78,3 +89,13 @@ async def send_message(
         generate(),
         media_type="text/event-stream"
     )
+
+
+@router.delete("/history")
+async def clear_history(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Clear all conversation history for the current user."""
+    await clear_user_conversations(db, user.id)
+    return {"message": "History cleared"}

@@ -49,8 +49,41 @@ async def get_user_profile(db: AsyncSession, user_id: int) -> dict:
 
     return {
         "current_stage": profile.current_stage,
+        "nickname": profile.nickname,
+        "current_identity": profile.current_identity,
+        "ideal_identity": profile.ideal_identity,
+        "core_problem": profile.core_problem,
         "anti_vision": profile.anti_vision,
         "vision": profile.vision,
         "identity_statement": profile.identity_statement,
         "key_insights": profile.key_insights
     }
+
+
+async def update_user_insights(
+    db: AsyncSession,
+    user_id: int,
+    insights: list[str]
+) -> None:
+    """Update user's key insights."""
+    result = await db.execute(
+        select(Profile).where(Profile.user_id == user_id)
+    )
+    profile = result.scalar_one_or_none()
+
+    if profile:
+        profile.key_insights = insights
+        await db.commit()
+
+
+async def clear_user_conversations(db: AsyncSession, user_id: int) -> None:
+    """Clear all conversations for a user."""
+    result = await db.execute(
+        select(Conversation).where(Conversation.user_id == user_id)
+    )
+    conversations = result.scalars().all()
+
+    for conv in conversations:
+        conv.messages = []
+
+    await db.commit()

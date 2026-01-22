@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from sqlalchemy import String, Text, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
@@ -10,7 +11,15 @@ class Profile(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True)
 
-    # Core memories
+    # Basic info
+    nickname: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # Identity exploration
+    current_identity: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ideal_identity: Mapped[str | None] = mapped_column(Text, nullable=True)
+    core_problem: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Core memories (from Dan Koe framework)
     anti_vision: Mapped[str | None] = mapped_column(Text, nullable=True)
     vision: Mapped[str | None] = mapped_column(Text, nullable=True)
     identity_statement: Mapped[str | None] = mapped_column(Text, nullable=True)

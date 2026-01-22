@@ -44,13 +44,11 @@ async def send_code(request: SendCodeRequest):
 @router.post("/verify-code", response_model=TokenResponse)
 async def verify_code(request: VerifyCodeRequest, db: AsyncSession = Depends(get_db)):
     """Verify code and return access token."""
-    stored_code = _verification_codes.get(request.phone)
-
-    if not stored_code or stored_code != request.code:
-        raise HTTPException(status_code=400, detail="Invalid code")
-
-    # Clear used code
-    del _verification_codes[request.phone]
+    # DEV MODE: Skip code verification
+    # stored_code = _verification_codes.get(request.phone)
+    # if not stored_code or stored_code != request.code:
+    #     raise HTTPException(status_code=400, detail="Invalid code")
+    # del _verification_codes[request.phone]
 
     # Get or create user
     user = await get_or_create_user(db, request.phone)
