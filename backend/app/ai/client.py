@@ -1,49 +1,54 @@
-from typing import AsyncGenerator
-import dashscope
-from dashscope import Generation
+"""LangChain LLM client configuration for Tongyi (通义千问)."""
+
+from langchain_community.chat_models import ChatTongyi
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from app.core.config import settings
 
-dashscope.api_key = settings.DASHSCOPE_API_KEY
 
-
-async def chat_stream(
-    messages: list[dict],
-    system_prompt: str = ""
-) -> AsyncGenerator[str, None]:
+def get_chat_model(
+    model: str = "qwen-turbo",
+    streaming: bool = True,
+    temperature: float = 0.7
+) -> ChatTongyi:
     """
-    Stream chat completion from Qwen model.
+    Get a configured ChatTongyi model instance.
 
     Args:
-        messages: List of {"role": "user"|"assistant", "content": "..."}
-        system_prompt: System prompt to prepend
+        model: Model name (qwen-turbo, qwen-plus, qwen-max)
+        streaming: Whether to enable streaming
+        temperature: Temperature for generation
+
+    Returns:
+        Configured ChatTongyi instance
     """
-    full_messages = []
-
-    if system_prompt:
-        full_messages.append({"role": "system", "content": system_prompt})
-
-    full_messages.extend(messages)
-
-    responses = Generation.call(
-        model="qwen-turbo",
-        messages=full_messages,
-        result_format="message",
-        stream=True,
-        incremental_output=True
+    return ChatTongyi(
+        model=model,
+        dashscope_api_key=settings.DASHSCOPE_API_KEY,
+        streaming=streaming,
+        temperature=temperature,
     )
 
-    for response in responses:
-        if response.status_code == 200:
-            content = response.output.choices[0].message.content
-            if content:
-                yield content
-        else:
-            raise Exception(f"AI Error: {response.code} - {response.message}")
 
+def convert_messages(messages: list[dict]) -> list:
+    """
+    Convert dict messages to LangChain message objects.
 
-async def chat(messages: list[dict], system_prompt: str = "") -> str:
-    """Non-streaming chat completion."""
+    Args:
+        messages: List of {"role": "user"|"assistant"|"system", "content": "..."}
+
+    Returns:
+        List of LangChain message objects
+    """
     result = []
-    async for chunk in chat_stream(messages, system_prompt):
-        result.append(chunk)
-    return "".join(result)
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+
+        if role == "user":
+            result.append(HumanMessage(content=content))
+        elif role == "assistant":
+            result.append(AIMessage(content=content))
+        elif role == "system":
+            result.append(SystemMessage(content=content))
+
+    return result
